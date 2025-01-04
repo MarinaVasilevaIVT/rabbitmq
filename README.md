@@ -1,0 +1,2 @@
+# rabbitmq
+Практическая работа - RabbitMQ
