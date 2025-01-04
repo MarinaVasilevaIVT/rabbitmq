@@ -124,4 +124,105 @@ public class Worker {
 
 ## Задача 2: реализация системы публикации/подписки (Publish/Subscribe)
 
+1. Реализуем издателя (Publisher):
 
+```Publisher.java```
+```java
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+public class Publisher {
+    private static final String EXCHANGE_NAME = "logs";
+
+    public static void main(String[] args) throws Exception {
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost("localhost");
+
+        int messageCount = 1;  // Счётчик сообщений
+        int delay = 4000;     // Интервал отправки сообщений в миллисекундах
+
+        if (args.length > 0) {
+            messageCount = Integer.parseInt(args[0]);
+        }
+        if (args.length > 1) {
+            delay = Integer.parseInt(args[1]);
+        }
+
+        try (Connection connection = factory.newConnection();
+             Channel channel = connection.createChannel()) {
+
+            channel.exchangeDeclare(EXCHANGE_NAME, "fanout");
+            System.out.println(" [*] Publisher started. Press Ctrl+C to exit.");
+
+            while (true) {
+                String message = "Task " + messageCount++;
+
+                channel.basicPublish(EXCHANGE_NAME, "", null, message.getBytes("UTF-8"));
+                System.out.println(" [x] Sent '" + message + "'");
+
+                Thread.sleep(delay);
+            }
+        } catch (Exception e) {
+            System.err.println(" [!] Error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+2. Реализуем подписчика (Subscriber):
+
+```Subscriber.java```
+
+```java
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.DeliverCallback;
+
+public class Subscriber {
+    private static final String EXCHANGE_NAME = "logs";
+
+    public static void main(String[] argv) throws Exception {
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost("localhost");
+        Connection connection = factory.newConnection();
+        Channel channel = connection.createChannel();
+
+        channel.exchangeDeclare(EXCHANGE_NAME, "fanout");
+        String queueName = channel.queueDeclare().getQueue();
+        channel.queueBind(queueName, EXCHANGE_NAME, "");
+
+        System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
+
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            String message = new String(delivery.getBody(), "UTF-8");
+            System.out.println(" [x] Received '" + message + "'");
+        };
+        channel.basicConsume(queueName, true, deliverCallback, consumerTag -> { });
+    }
+}
+```
+
+3. Протестируем на трех подписчиков и одном издателе. А позже подключим четвертого подписчика. Что получаем в итоге:
+
+Издатель:
+
+![6](images/6.png)
+
+Подписчик 1: 
+
+![7](images/7.png)
+
+Подписчик 2: 
+
+![8](images/8.png)
+
+Подписчик 3: 
+
+![9](images/9.png)
+
+Подписчик 4, подключенный после 7 итерации: 
+
+![10](images/10.png)
